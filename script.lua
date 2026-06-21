@@ -265,6 +265,7 @@ local DefaultConfig = {
         JobJoiner = {X = 0.5, Y = 0.7947341234766032},
         AutoBuy = {X = 0.2736458460489909, Y = -0.04124086318349192},
         TargetControls = {X = 0.5776041666666667, Y = -0.04306568070174009},
+        ServerHop = {X = 0.5, Y = 0.5},
     },
     AutoBuyRange = 17,
     AutoBuyColor = {R = 180, G = 180, B = 180},
@@ -386,6 +387,8 @@ local DefaultConfig = {
     DisableAPPanelOnBraintopia = false,
     BraintopiaESPInAdminPanel = true,
     AutoStealSpeed = false,
+    ShowServerHop = true,
+    ServerHopAutoMode = false,
     ShowJobJoiner = true,
     JobJoinerKey = "J",
     ShowServerPos = false,
@@ -15967,4 +15970,363 @@ task.spawn(function()
             end)
         end
     end
+end)
+task.spawn(function()
+    task.wait(0.5)
+    if not Config.ShowServerHop then return end
+    local shScreenGui = Instance.new("ScreenGui")
+    shScreenGui.Name = "XiServerHop"
+    shScreenGui.ResetOnSpawn = false
+    shScreenGui.Parent = PlayerGui
+    shScreenGui.Enabled = Config.ShowServerHop
+    local shFrame = Instance.new("Frame", shScreenGui)
+    shFrame.Size = UDim2.new(0, 250, 0, 220)
+    shFrame.Position = UDim2.new(Config.Positions.ServerHop.X, 0, Config.Positions.ServerHop.Y, 0)
+    shFrame.BackgroundColor3 = Theme.Background
+    shFrame.BackgroundTransparency = 0.05
+    Instance.new("UICorner", shFrame).CornerRadius = UDim.new(0, 12)
+    local shStroke = Instance.new("UIStroke", shFrame)
+    shStroke.Color = Color3.fromRGB(128, 128, 128)
+    shStroke.Thickness = 1.5
+    shStroke.Transparency = 0.4
+    local shHeader = Instance.new("Frame", shFrame)
+    shHeader.Size = UDim2.new(1, 0, 0, 35)
+    shHeader.BackgroundTransparency = 1
+    MakeDraggable(shHeader, shFrame, "ServerHop")
+    AddResizeHandle(shFrame, "ServerHop", UDim2.new(1, -22, 0, 6))
+    local shTitle = Instance.new("TextLabel", shHeader)
+    shTitle.Size = UDim2.new(1, -15, 1, 0)
+    shTitle.Position = UDim2.new(0, 15, 0, 0)
+    shTitle.BackgroundTransparency = 1
+    shTitle.Text = "SERVER HOP"
+    shTitle.Font = Enum.Font.GothamBlack
+    shTitle.TextSize = 14
+    shTitle.TextColor3 = Theme.TextPrimary
+    shTitle.TextXAlignment = Enum.TextXAlignment.Left
+    local shContainer = Instance.new("Frame", shFrame)
+    shContainer.Size = UDim2.new(1, -20, 1, -40)
+    shContainer.Position = UDim2.new(0, 10, 0, 35)
+    shContainer.BackgroundTransparency = 1
+    local shLayout = Instance.new("UIListLayout", shContainer)
+    shLayout.Padding = UDim.new(0, 8)
+    shLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    local function CreateSHRow(h)
+        local r = Instance.new("Frame", shContainer)
+        r.Size = UDim2.new(1, 0, 0, h or 30)
+        r.BackgroundTransparency = 1
+        return r
+    end
+    local tbRow = CreateSHRow(35)
+    local tbLbl = Instance.new("TextLabel", tbRow)
+    tbLbl.Size = UDim2.new(0.5, 0, 1, 0)
+    tbLbl.BackgroundTransparency = 1
+    tbLbl.Text = "Min Value:"
+    tbLbl.TextColor3 = Theme.TextPrimary
+    tbLbl.Font = Enum.Font.GothamBold
+    tbLbl.TextSize = 12
+    tbLbl.TextXAlignment = Enum.TextXAlignment.Left
+    local tbFrame = Instance.new("Frame", tbRow)
+    tbFrame.Size = UDim2.new(0, 100, 0, 28)
+    tbFrame.Position = UDim2.new(1, -100, 0.5, -14)
+    tbFrame.BackgroundColor3 = Theme.Surface
+    tbFrame.BorderSizePixel = 0
+    Instance.new("UICorner", tbFrame).CornerRadius = UDim.new(0, 6)
+    local tbs = Instance.new("UIStroke", tbFrame)
+    tbs.Color = Color3.fromRGB(128, 128, 128)
+    tbs.Thickness = 1.5
+    tbs.Transparency = 0.4
+    local shTextBox = Instance.new("TextBox", tbFrame)
+    shTextBox.Size = UDim2.new(1, -8, 1, -4)
+    shTextBox.Position = UDim2.new(0, 4, 0, 2)
+    shTextBox.BackgroundTransparency = 1
+    shTextBox.Text = ""
+    shTextBox.TextColor3 = Theme.TextPrimary
+    shTextBox.TextSize = 11
+    shTextBox.Font = Enum.Font.Gotham
+    shTextBox.TextXAlignment = Enum.TextXAlignment.Center
+    shTextBox.PlaceholderText = "ex: 1000000"
+    shTextBox.ClearTextOnFocus = false
+    shTextBox.ZIndex = 2
+    shTextBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local f = shTextBox.Text:gsub("[^%d]", "")
+        if shTextBox.Text ~= f then shTextBox.Text = f; shTextBox.CursorPosition = #f + 1 end
+    end)
+    local autoRow = CreateSHRow(30)
+    local autoLbl = Instance.new("TextLabel", autoRow)
+    autoLbl.Size = UDim2.new(0.5, 0, 1, 0)
+    autoLbl.BackgroundTransparency = 1
+    autoLbl.Text = "Auto Hop"
+    autoLbl.TextColor3 = Theme.TextPrimary
+    autoLbl.Font = Enum.Font.GothamBold
+    autoLbl.TextSize = 12
+    autoLbl.TextXAlignment = Enum.TextXAlignment.Left
+    local autoBtn = Instance.new("TextButton", autoRow)
+    autoBtn.Size = UDim2.new(0, 50, 0, 24)
+    autoBtn.Position = UDim2.new(1, -50, 0.5, -12)
+    autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
+    autoBtn.Text = "OFF"
+    autoBtn.Font = Enum.Font.GothamBold
+    autoBtn.TextSize = 11
+    autoBtn.TextColor3 = Theme.TextPrimary
+    Instance.new("UICorner", autoBtn).CornerRadius = UDim.new(0, 6)
+    local stopRow = CreateSHRow(30)
+    local stopLbl = Instance.new("TextLabel", stopRow)
+    stopLbl.Size = UDim2.new(0.5, 0, 1, 0)
+    stopLbl.BackgroundTransparency = 1
+    stopLbl.Text = "Stop"
+    stopLbl.TextColor3 = Theme.TextPrimary
+    stopLbl.Font = Enum.Font.GothamBold
+    stopLbl.TextSize = 12
+    stopLbl.TextXAlignment = Enum.TextXAlignment.Left
+    local stopBtn = Instance.new("TextButton", stopRow)
+    stopBtn.Size = UDim2.new(0, 50, 0, 24)
+    stopBtn.Position = UDim2.new(1, -50, 0.5, -12)
+    stopBtn.BackgroundColor3 = Theme.Error
+    stopBtn.Text = "STOP"
+    stopBtn.Font = Enum.Font.GothamBold
+    stopBtn.TextSize = 11
+    stopBtn.TextColor3 = Theme.TextPrimary
+    Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 6)
+    local statusRow = CreateSHRow(18)
+    local statusLbl = Instance.new("TextLabel", statusRow)
+    statusLbl.Size = UDim2.new(1, 0, 1, 0)
+    statusLbl.BackgroundTransparency = 1
+    statusLbl.Text = "Status: Idle"
+    statusLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+    statusLbl.TextSize = 10
+    statusLbl.Font = Enum.Font.GothamBold
+    statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+    local brRow = CreateSHRow(18)
+    local brainrotLbl = Instance.new("TextLabel", brRow)
+    brainrotLbl.Size = UDim2.new(1, 0, 1, 0)
+    brainrotLbl.BackgroundTransparency = 1
+    brainrotLbl.Text = ""
+    brainrotLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
+    brainrotLbl.TextSize = 9
+    brainrotLbl.Font = Enum.Font.GothamBold
+    brainrotLbl.TextXAlignment = Enum.TextXAlignment.Left
+    brainrotLbl.TextWrapped = true
+    local hopActive = false
+    local autoModeEnabled = false
+    local detectedBrainrots = {}
+    local attemptedServers = {}
+    local function parseValue(text)
+        text = text:lower()
+        local num = tonumber(text:match("[%d%.]+"))
+        if not num then return 0 end
+        if text:match("%d+%.?%d*%s*k") then num = num * 1000
+        elseif text:match("%d+%.?%d*%s*m") then num = num * 1000000
+        elseif text:match("%d+%.?%d*%s*b") then num = num * 1000000000
+        end
+        return num
+    end
+    local function formatValue(n)
+        if n >= 1000000000 then return string.format("%.1fb", n/1000000000)
+        elseif n >= 1000000 then return string.format("%.1fm", n/1000000)
+        elseif n >= 1000 then return string.format("%.1fk", n/1000)
+        else return tostring(n)
+        end
+    end
+    local function isServerBlocked(id)
+        return attemptedServers[id] == true
+    end
+    local function doServerHop()
+        if not hopActive then return end
+        statusLbl.Text = "Status: Searching..."
+        local placeId = game.PlaceId
+        local cursor = nil
+        while hopActive do
+            local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+            if cursor then url = url .. "&cursor=" .. cursor end
+            local success, content = pcall(function() return game:HttpGet(url) end)
+            if not success or not content then
+                if hopActive then
+                    statusLbl.Text = "Status: Error"
+                    if autoModeEnabled then task.wait(2) end
+                end
+            else
+                local decoded = HttpService:JSONDecode(content)
+                if decoded and decoded.data then
+                    for _, server in ipairs(decoded.data) do
+                        if not hopActive then break end
+                        if server.playing < server.maxPlayers and server.id ~= game.JobId and not isServerBlocked(server.id) then
+                            attemptedServers[server.id] = true
+                            statusLbl.Text = "Status: Teleporting..."
+                            Config.ServerHopAutoMode = autoModeEnabled
+                            SaveConfig()
+                            pcall(function()
+                                TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
+                            end)
+                            task.wait(2)
+                        end
+                    end
+                    cursor = decoded.nextPageCursor
+                    attemptedServers = {}
+                    if not cursor then
+                        if hopActive and autoModeEnabled then
+                            statusLbl.Text = "Status: End of list, retrying..."
+                            cursor = nil
+                            task.wait(2)
+                        elseif hopActive then
+                            hopActive = false
+                            statusLbl.Text = "Status: No servers found"
+                        end
+                    end
+                elseif hopActive and autoModeEnabled then
+                    statusLbl.Text = "Status: Empty list, retrying..."
+                    task.wait(2)
+                end
+            end
+        end
+        autoModeEnabled = false
+        Config.ServerHopAutoMode = false; SaveConfig()
+        autoBtn.Text = "OFF"
+        autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
+    end
+    local function startAutoSearch()
+        autoBtn.BackgroundColor3 = Theme.Success
+        autoBtn.Text = "ON"
+        hopActive = true
+        statusLbl.Text = "Status: Starting..."
+        statusLbl.TextColor3 = Color3.fromRGB(0, 255, 0)
+        local target = tonumber(shTextBox.Text)
+        if target and target > 0 then
+            local maxFound = 0
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj.Name:lower():find("overhead") then
+                    for _, gui in pairs(obj:GetDescendants()) do
+                        if gui:IsA("TextLabel") then
+                            local text = gui.Text:lower()
+                            if text:find("%$") and (text:find("/s") or text:find("sec")) then
+                                local val = parseValue(text)
+                                if val > maxFound then maxFound = val end
+                            end
+                        end
+                    end
+                end
+            end
+            if maxFound >= target then
+                statusLbl.Text = "Target " .. formatValue(target) .. "+ found!"
+                statusLbl.TextColor3 = Color3.fromRGB(0, 255, 0)
+                hopActive = false; autoModeEnabled = false
+                Config.ServerHopAutoMode = false; SaveConfig()
+                autoBtn.Text = "OFF"; autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
+            else
+                task.spawn(doServerHop)
+            end
+        else
+            task.spawn(doServerHop)
+        end
+    end
+    local function stopAutoSearch()
+        hopActive = false
+        autoBtn.Text = "OFF"; autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
+        statusLbl.Text = "Status: Stopped"; statusLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+    end
+    autoBtn.MouseButton1Click:Connect(function()
+        autoModeEnabled = not autoModeEnabled
+        Config.ServerHopAutoMode = autoModeEnabled
+        SaveConfig()
+        if autoModeEnabled then
+            startAutoSearch()
+        else
+            stopAutoSearch()
+        end
+    end)
+    stopBtn.MouseButton1Click:Connect(function()
+        hopActive = false; autoModeEnabled = false
+        Config.ServerHopAutoMode = false; SaveConfig()
+        statusLbl.Text = "Status: Stopped"; statusLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+        autoBtn.Text = "OFF"; autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
+    end)
+    local function scanOverhead(overhead)
+        local name, income = nil, nil
+        for _, gui in pairs(overhead:GetDescendants()) do
+            if gui:IsA("TextLabel") then
+                local text = gui.Text
+                if text:find("%$") and (text:lower():find("/s") or text:lower():find("sec")) then
+                    income = text
+                elseif not text:find("%$") and text ~= "STOLEN" and #text > 2 then
+                    name = text
+                end
+            end
+        end
+        if income then
+            local value = parseValue(income)
+            local key = (name or "Brainrot") .. income
+            if value >= 10000000 and not detectedBrainrots[key] then
+                detectedBrainrots[key] = true
+                brainrotLbl.Text = "BRAINROT: " .. (name or "Brainrot") .. " | " .. income
+                statusLbl.Text = "Brainrot found! Auto disabled"
+                statusLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
+                if autoModeEnabled then
+                    autoModeEnabled = false; hopActive = false
+                    Config.ServerHopAutoMode = false; SaveConfig()
+                    autoBtn.Text = "OFF"; autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
+                end
+                task.delay(8, function()
+                    if brainrotLbl.Text == "BRAINROT: " .. (name or "Brainrot") .. " | " .. income then
+                        brainrotLbl.Text = ""
+                        if not autoModeEnabled then
+                            statusLbl.Text = "Status: Idle"; statusLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+                        end
+                    end
+                end)
+            end
+        end
+    end
+    workspace.DescendantAdded:Connect(function(d)
+        if d.Name:lower():find("overhead") then task.wait(0.1); scanOverhead(d) end
+        if d:IsA("Model") then
+            local o = d:FindFirstChild("Overhead") or d:FindFirstChild("AnimalOverhead")
+            if o then task.wait(0.1); scanOverhead(o) end
+        end
+    end)
+    task.spawn(function()
+        task.wait(1)
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj.Name:lower():find("overhead") then scanOverhead(obj) end
+        end
+        if Config.ServerHopAutoMode and not autoModeEnabled then
+            autoModeEnabled = true; startAutoSearch()
+        end
+    end)
+    local startTime = tick()
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 60, 60)),
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(180, 180, 180)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 120, 120)),
+        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(180, 180, 180)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 60, 60)),
+    }
+    grad.Rotation = 0
+    grad.Parent = shStroke
+    local conn
+    conn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not shFrame.Parent then conn:Disconnect(); return end
+        local now = tick()
+        local W, H = shFrame.AbsoluteSize.X, shFrame.AbsoluteSize.Y
+        if W > 0 and H > 0 then
+            local speed = 2.5
+            local perim = (W + H) * 2
+            local elapsed = (now - startTime) % speed
+            local progress = elapsed / speed
+            local dist = (progress * perim) % perim
+            local rot = 0
+            if dist < W then
+                rot = (dist / W) * 90
+            elseif dist < W + H then
+                rot = 90 + ((dist - W) / H) * 90
+            elseif dist < W * 2 + H then
+                rot = 180 + ((dist - W - H) / W) * 90
+            else
+                rot = 270 + ((dist - W * 2 - H) / H) * 90
+            end
+            grad.Rotation = rot
+            local wave = math.sin(progress * math.pi * 2)
+            shStroke.Transparency = 0.05 + ((wave + 1) * 0.5) * 0.4
+            shStroke.Thickness = 6 + math.sin(now * 5) * 0.15
+        end
+    end)
 end)
