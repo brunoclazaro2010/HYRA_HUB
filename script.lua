@@ -2352,6 +2352,10 @@ task.spawn(function()
         enableBtn.TextColor3 = enabled and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(162, 80, 188)
         if allPets then
             targetsLbl.Text = "Targets: " .. #allPets
+            _G._SH_BrainrotNames = {}
+            for _, p in ipairs(allPets) do
+                table.insert(_G._SH_BrainrotNames, p.petName)
+            end
         end
         playersLbl.Text = "Players: " .. #game:GetService("Players"):GetPlayers()
         local stealing = LocalPlayer:GetAttribute("Stealing")
@@ -3039,7 +3043,7 @@ task.spawn(function()
         local function deferScan()
             if pendingScan then return end
             pendingScan = true
-            task.defer(function()
+            task.spawn(function()
                 pendingScan = false
                 scanSinglePlot(plot)
                 eagerCachePlotPrompts(plot)
@@ -14410,11 +14414,11 @@ do
     end
 end
 task.spawn(function()
-	task.wait(0.3)
 	local animPlaying = false
 	local tracks = {}
 	local clone, oldRoot, hip, connection
 	local folderConnections = {}
+	local originalRootTransparency
 	local SINK_AMOUNT = 5
 	local serverGhosts = {}
 	local ghostEnabled = true
@@ -14424,11 +14428,13 @@ task.spawn(function()
 	local errorOrbActive = false
 	local errorOrb = nil
 	local errorOrbConnection = nil
+
 	local function clearErrorOrb()
 		if errorOrb and errorOrb.Parent then errorOrb:Destroy() end
 		errorOrb = nil; errorOrbActive = false
 		if errorOrbConnection then errorOrbConnection:Disconnect(); errorOrbConnection = nil end
 	end
+
 	local function createErrorOrb()
 		if errorOrbActive then return end
 		errorOrbActive = true
@@ -14444,17 +14450,18 @@ task.spawn(function()
 		local l1 = Instance.new("TextLabel")
 		l1.Size = UDim2.new(1, 0, 0.5, 0); l1.BackgroundTransparency = 1
 		l1.Text = "ERROR CAUSED BY PLAYER DEATH"
-		l1.TextColor3 = Color3.fromRGB(200, 0, 255)
+		l1.TextColor3 = Color3.fromRGB(255, 0, 0)
 		l1.TextStrokeTransparency = 0; l1.TextStrokeColor3 = Color3.new(0, 0, 0)
 		l1.Font = Enum.Font.SourceSansBold; l1.TextScaled = true; l1.Parent = fr
 		local l2 = Instance.new("TextLabel")
 		l2.Size = UDim2.new(1, 0, 0.5, 0); l2.Position = UDim2.new(0, 0, 0.5, 0)
 		l2.BackgroundTransparency = 1; l2.Text = "MUST RESET TO FIX ERROR"
-		l2.TextColor3 = Color3.fromRGB(200, 0, 255)
+		l2.TextColor3 = Color3.fromRGB(255, 0, 0)
 		l2.TextStrokeTransparency = 0; l2.TextStrokeColor3 = Color3.new(0, 0, 0)
 		l2.Font = Enum.Font.SourceSansBold; l2.TextScaled = true; l2.Parent = fr
 		errorOrb = sg
 	end
+
 	local function createServerGhost(position)
 		if not ghostEnabled or errorOrbActive then return end
 		local now = tick()
@@ -14471,7 +14478,7 @@ task.spawn(function()
 		local sl = Instance.new("TextLabel")
 		sl.Size = UDim2.new(0, 500, 0, 30); sl.Position = UDim2.new(0.5, -250, 0.15, 0)
 		sl.BackgroundTransparency = 1; sl.Text = "LAGBACK DETECTED"
-		sl.TextColor3 = Color3.fromRGB(200, 0, 255)
+		sl.TextColor3 = Color3.fromRGB(255, 0, 0)
 		sl.TextStrokeTransparency = 0; sl.TextStrokeColor3 = Color3.new(0, 0, 0)
 		sl.Font = Enum.Font.SourceSansBold; sl.TextScaled = true; sl.Parent = sg
 		local sw = Instance.new("TextLabel")
@@ -14484,7 +14491,7 @@ task.spawn(function()
 		task.delay(1.5, function() if sg and sg.Parent then sg:Destroy() end end)
 		local ghost = Instance.new("Part")
 		ghost.Name = "LagbackGhost"; ghost.Shape = Enum.PartType.Ball
-		ghost.Size = Vector3.new(3, 3, 3); ghost.Color = Color3.fromRGB(200, 0, 255)
+		ghost.Size = Vector3.new(3, 3, 3); ghost.Color = Color3.fromRGB(255, 0, 0)
 		ghost.Material = Enum.Material.Glass; ghost.Transparency = 0.3
 		ghost.CanCollide = false; ghost.Anchored = true; ghost.CastShadow = false
 		ghost.Position = position + Vector3.new(0, 5, 0); ghost.Parent = Workspace.CurrentCamera
@@ -14493,7 +14500,7 @@ task.spawn(function()
 		bb.AlwaysOnTop = true; bb.Parent = ghost
 		local bl = Instance.new("TextLabel")
 		bl.Size = UDim2.new(1, 0, 0, 25); bl.BackgroundTransparency = 1
-		bl.Text = "LAGBACK DETECTED"; bl.TextColor3 = Color3.fromRGB(200, 0, 255)
+		bl.Text = "LAGBACK DETECTED"; bl.TextColor3 = Color3.fromRGB(255, 0, 0)
 		bl.TextStrokeTransparency = 0; bl.TextStrokeColor3 = Color3.new(0, 0, 0)
 		bl.Font = Enum.Font.SourceSansBold; bl.TextScaled = true; bl.Parent = bb
 		local bw = Instance.new("TextLabel")
@@ -14505,6 +14512,7 @@ task.spawn(function()
 		bw.Font = Enum.Font.SourceSansBold; bw.TextScaled = true; bw.Parent = bb
 		table.insert(serverGhosts, ghost)
 	end
+
 	local function clearAllGhosts()
 		for _, ghost in pairs(serverGhosts) do pcall(function() if ghost and ghost.Parent then ghost:Destroy() end end) end
 		serverGhosts = {}; clearErrorOrb(); lagbackCallCount = 0; lastLagbackTime = 0
@@ -14515,6 +14523,7 @@ task.spawn(function()
 		pcall(function() if Workspace.CurrentCamera then for _, c in pairs(Workspace.CurrentCamera:GetChildren()) do if c.Name == "LagbackGhost" then c:Destroy() end end end end)
 		pcall(function() for _, c in pairs(Workspace:GetDescendants()) do if c.Name == "LagbackGhost" then c:Destroy() end end end)
 	end
+
 	local function removeFolders()
 		local pf = Workspace:FindFirstChild(LocalPlayer.Name)
 		if not pf then return end
@@ -14537,6 +14546,7 @@ task.spawn(function()
 		end)
 		table.insert(folderConnections, conn)
 	end
+
 	local function doClone()
 		local character = LocalPlayer.Character
 		if character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
@@ -14551,6 +14561,7 @@ task.spawn(function()
 			character.Parent = tmp
 			clone = oldRoot:Clone(); clone.Parent = character
 			oldRoot.Parent = Workspace.CurrentCamera
+			originalRootTransparency = oldRoot.Transparency; oldRoot.Transparency = 1
 			clone.CFrame = oldRoot.CFrame; character.PrimaryPart = clone
 			character.Parent = Workspace
 			for _, v in pairs(character:GetDescendants()) do
@@ -14563,21 +14574,14 @@ task.spawn(function()
 		end
 		return false
 	end
+
 	local function revertClone()
 		local character = LocalPlayer.Character
 		if not oldRoot or not oldRoot:IsDescendantOf(Workspace) or not character or character.Humanoid.Health <= 0 then return end
-		local hum = character:FindFirstChildOfClass("Humanoid")
-		local prevPlatformStand = hum and hum.PlatformStand or false
-		if hum then pcall(function() hum.PlatformStand = true end) end
-		local snapCF = (clone and clone.Parent) and clone.CFrame or oldRoot.CFrame
-		pcall(function()
-			oldRoot.CFrame = snapCF
-			oldRoot.Velocity = Vector3.zero
-			oldRoot.Velocity = Vector3.zero
-		end)
 		local tmp = Instance.new("Model"); tmp.Parent = game
 		character.Parent = tmp
 		oldRoot.Parent = character; character.PrimaryPart = oldRoot
+		oldRoot.Transparency = originalRootTransparency or 0
 		character.Parent = Workspace; oldRoot.CanCollide = true
 		for _, v in pairs(character:GetDescendants()) do
 			if v:IsA("Weld") or v:IsA("Motor6D") then
@@ -14585,25 +14589,12 @@ task.spawn(function()
 				if v.Part1 == clone then v.Part1 = oldRoot end
 			end
 		end
-		if clone then clone:Destroy(); clone = nil end
-		pcall(function()
-			oldRoot.CFrame = snapCF
-			oldRoot.Velocity = Vector3.zero
-			oldRoot.Velocity = Vector3.zero
-		end)
+		if clone then local p = clone.CFrame; clone:Destroy(); clone = nil; oldRoot.CFrame = p end
 		oldRoot = nil
 		if character and character.Humanoid then character.Humanoid.HipHeight = hip end
 		clearAllGhosts()
-		if hum then
-			task.spawn(function()
-				RunService.Heartbeat:Wait()
-				RunService.Heartbeat:Wait()
-				if hum and hum.Parent then
-					pcall(function() hum.PlatformStand = prevPlatformStand end)
-				end
-			end)
-		end
 	end
+
 	local function animationTrickery()
 		local character = LocalPlayer.Character
 		if character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
@@ -14622,6 +14613,7 @@ task.spawn(function()
 			end)
 		end
 	end
+
 	local function turnOff()
 		clearAllGhosts()
 		if not animPlaying then return end
@@ -14633,30 +14625,12 @@ task.spawn(function()
 		if connection then connection:Disconnect(); connection = nil end
 		for _, c in ipairs(folderConnections) do if c then c:Disconnect() end end
 		folderConnections = {}
-		if oldRoot and oldRoot.Parent and clone and clone.Parent then
-			pcall(function()
-				local p = clone.CFrame
-				oldRoot.CFrame = p
-				oldRoot.Velocity = Vector3.zero
-				oldRoot.Velocity = Vector3.zero
-				clone.Velocity = Vector3.zero
-				clone.Velocity = Vector3.zero
-			end)
-			RunService.Heartbeat:Wait()
-			RunService.Heartbeat:Wait()
-		end
 		revertClone(); clearAllGhosts()
-		local rootNow = character and character:FindFirstChild("HumanoidRootPart")
-		if rootNow then
-			pcall(function()
-				rootNow.Velocity = Vector3.zero
-				rootNow.Velocity = Vector3.zero
-			end)
-		end
 		if humanoid then pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
 		if _G.updateMovementPanelInvisVisual then pcall(_G.updateMovementPanelInvisVisual, false) end
 		if updateVisualState then updateVisualState(false) end
 	end
+
 	local function turnOn()
 		if animPlaying then return end
 		local character = LocalPlayer.Character
@@ -14705,18 +14679,25 @@ task.spawn(function()
 						local sa = (_G.SinkSliderValue or 5) * 0.5
 						local cf = root.CFrame - Vector3.new(0, sa, 0)
 						oldRoot.CFrame = cf * CFrame.Angles(math.rad(rotAngle), 0, 0)
-						oldRoot.Velocity = root.Velocity; oldRoot.CanCollide = false
+						oldRoot.AssemblyLinearVelocity = root.AssemblyLinearVelocity; oldRoot.CanCollide = false
 						lastSetPosition = oldRoot.Position
+					end
+					for _, part in ipairs(character:GetDescendants()) do
+						if part:IsA("BasePart") and part ~= oldRoot and part ~= clone and part.Transparency > 0 then
+							part.Transparency = 0
+						end
 					end
 				end
 			end)
 		end
 	end
+
     local invisGui = Instance.new("ScreenGui")
-    invisGui.Name = "XiInvisPanel"
+    invisGui.Name = "BullysInvisPanel"
     invisGui.ResetOnSpawn = false
     invisGui.Parent = PlayerGui
     invisGui.Enabled = Config.ShowInvisPanel
+
     local iFrame = Instance.new("Frame", invisGui)
     iFrame.Size = UDim2.new(0, 250, 0, 260)
     iFrame.Position = UDim2.new(Config.Positions.InvisPanel.X, 0, Config.Positions.InvisPanel.Y, 0)
@@ -14728,11 +14709,13 @@ task.spawn(function()
     iStroke.Thickness = 1.5
     iStroke.Transparency = 0.4
     CreateGradient(iStroke)
+    task.defer(function() if addRacetrackBorder then addRacetrackBorder(iFrame, Theme.Accent1, 3) end end)
+
     local iHeader = Instance.new("Frame", iFrame)
     iHeader.Size = UDim2.new(1, 0, 0, 35)
     iHeader.BackgroundTransparency = 1
     MakeDraggable(iHeader, iFrame, "InvisPanel")
-    AddResizeHandle(iFrame, "InvisPanel", UDim2.new(1, -22, 0, 6))
+
     local iTitle = Instance.new("TextLabel", iHeader)
     iTitle.Size = UDim2.new(1, -15, 1, 0)
     iTitle.Position = UDim2.new(0, 15, 0, 0)
@@ -14742,6 +14725,7 @@ task.spawn(function()
     iTitle.TextSize = 14
     iTitle.TextColor3 = Theme.TextPrimary
     iTitle.TextXAlignment = Enum.TextXAlignment.Left
+
     local iContainer = Instance.new("Frame", iFrame)
     iContainer.Size = UDim2.new(1, -20, 1, -40)
     iContainer.Position = UDim2.new(0, 10, 0, 35)
@@ -14749,12 +14733,14 @@ task.spawn(function()
     local iLayout = Instance.new("UIListLayout", iContainer)
     iLayout.Padding = UDim.new(0, 8)
     iLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
     local function CreateIRow(height)
         local r = Instance.new("Frame", iContainer)
         r.Size = UDim2.new(1, 0, 0, height or 30)
         r.BackgroundTransparency = 1
         return r
     end
+
     local row1 = CreateIRow(30)
     local lbl1 = Instance.new("TextLabel", row1)
     lbl1.Size = UDim2.new(0.6, 0, 1, 0)
@@ -14764,6 +14750,7 @@ task.spawn(function()
     lbl1.Font = Enum.Font.GothamBold
     lbl1.TextSize = 12
     lbl1.TextXAlignment = Enum.TextXAlignment.Left
+
     local btnInvis = Instance.new("TextButton", row1)
     btnInvis.Size = UDim2.new(0, 40, 0, 24)
     btnInvis.Position = UDim2.new(1, -40, 0.5, -12)
@@ -14773,6 +14760,7 @@ task.spawn(function()
     btnInvis.TextSize = 11
     btnInvis.TextColor3 = Theme.TextPrimary
     Instance.new("UICorner", btnInvis).CornerRadius = UDim.new(0, 6)
+
     local keyBtn = Instance.new("TextButton", row1)
     keyBtn.Size = UDim2.new(0, 40, 0, 24)
     keyBtn.Position = UDim2.new(1, -90, 0.5, -12)
@@ -14795,6 +14783,7 @@ task.spawn(function()
             end
         end)
     end)
+
     local row2 = CreateIRow(30)
     local lbl2 = Instance.new("TextLabel", row2)
     lbl2.Size = UDim2.new(0.6, 0, 1, 0)
@@ -14804,6 +14793,7 @@ task.spawn(function()
     lbl2.Font = Enum.Font.GothamBold
     lbl2.TextSize = 12
     lbl2.TextXAlignment = Enum.TextXAlignment.Left
+
     local btnFix = Instance.new("TextButton", row2)
     btnFix.Size = UDim2.new(0, 50, 0, 24)
     btnFix.Position = UDim2.new(1, -50, 0.5, -12)
@@ -14820,6 +14810,7 @@ task.spawn(function()
         btnFix.Text = _G.AutoRecoverLagback and "ON" or "OFF"
         btnFix.BackgroundColor3 = _G.AutoRecoverLagback and Theme.Success or Theme.SurfaceHighlight
     end)
+
     local row3 = CreateIRow(30)
     local lbl3 = Instance.new("TextLabel", row3)
     lbl3.Size = UDim2.new(0.6, 0, 1, 0)
@@ -14829,6 +14820,7 @@ task.spawn(function()
     lbl3.Font = Enum.Font.GothamBold
     lbl3.TextSize = 12
     lbl3.TextXAlignment = Enum.TextXAlignment.Left
+
     local btnAutoInvis = Instance.new("TextButton", row3)
     btnAutoInvis.Size = UDim2.new(0, 50, 0, 24)
     btnAutoInvis.Position = UDim2.new(1, -50, 0.5, -12)
@@ -14849,10 +14841,12 @@ task.spawn(function()
         btnAutoInvis.Text = ns and "ON" or "OFF"
         btnAutoInvis.BackgroundColor3 = ns and Theme.Success or Theme.SurfaceHighlight
     end)
+
     local function CreateFancySlider(parent, name, min, max, default, callback)
         local frame = Instance.new("Frame", parent)
         frame.Size = UDim2.new(1, 0, 0, IS_MOBILE and 35 or 45)
         frame.BackgroundTransparency = 1
+        
         if IS_MOBILE then
             local label = Instance.new("TextLabel", frame)
             label.Size = UDim2.new(0.5, 0, 1, 0)
@@ -14862,6 +14856,7 @@ task.spawn(function()
             label.TextSize = 11
             label.TextXAlignment = Enum.TextXAlignment.Left
             label.Text = name .. ":"
+            
             local textBox = Instance.new("TextBox", frame)
             textBox.Size = UDim2.new(0, 80, 0, 28)
             textBox.Position = UDim2.new(1, -80, 0.5, -14)
@@ -14878,6 +14873,7 @@ task.spawn(function()
             textBoxStroke.Color = Theme.Accent1
             textBoxStroke.Thickness = 1.5
             textBoxStroke.Transparency = 0.3
+            
             textBox.FocusLost:Connect(function(enterPressed)
                 local num = tonumber(textBox.Text)
                 if num then
@@ -14893,6 +14889,7 @@ task.spawn(function()
                     textBox.Text = tostring(default)
                 end
             end)
+            
             return frame
         else
             local label = Instance.new("TextLabel", frame)
@@ -14911,7 +14908,7 @@ task.spawn(function()
             slideBg.Parent = frame
             local fill = Instance.new("Frame", slideBg)
             fill.Size = UDim2.new(0, 0, 1, 0)
-            fill.BackgroundColor3 = Color3.fromRGB(185, 25, 222)
+            fill.BackgroundColor3 = Color3.fromRGB(80, 130, 180)
             fill.ZIndex = 12
             fill.Parent = slideBg
             Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
@@ -14956,6 +14953,7 @@ task.spawn(function()
             return frame
         end
     end
+
     local rotationSliderManuallyChanged = false
     CreateFancySlider(iContainer, "Rotation", 180, 360, Config.InvisStealAngle, function(v)
         rotationSliderManuallyChanged = true
@@ -14963,11 +14961,14 @@ task.spawn(function()
         _G.InvisStealAngle = v
         SaveConfig()
     end)
+
     CreateFancySlider(iContainer, "Depth", 0.5, 10, Config.SinkSliderValue, function(v)
         Config.SinkSliderValue = v
         _G.SinkSliderValue = v
         SaveConfig()
     end)
+
+
     local function updateVisualState(on)
         if btnInvis then
             btnInvis.Text = on and "ON" or "OFF"
@@ -14977,15 +14978,18 @@ task.spawn(function()
             pcall(_G.updateMovementPanelInvisVisual, on)
         end
     end
+
     btnInvis.MouseButton1Click:Connect(function()
 		if _G.toggleInvisibleSteal then
 			pcall(_G.toggleInvisibleSteal)
 			updateVisualState(_G.invisibleStealEnabled or false)
 		end
 	end)
+
 	_G.toggleInvisibleSteal = function()
 		if animPlaying then turnOff() else turnOn() end
 	end
+
 	UserInputService.InputBegan:Connect(function(input)
 		if UserInputService:GetFocusedTextBox() then return end
 		if input.KeyCode == (_G.INVISIBLE_STEAL_KEY or Enum.KeyCode.V) then
@@ -14994,6 +14998,7 @@ task.spawn(function()
 			if updateVisualState then updateVisualState(_G.invisibleStealEnabled or false) end
 		end
 	end)
+
 	local function onCharacterAdded(newChar)
 		clearErrorOrb(); clearAllGhosts(); lagbackCallCount = 0
 		pcall(function() for _, c in pairs(Workspace.CurrentCamera:GetChildren()) do if c:IsA("BasePart") and c.Name == "HumanoidRootPart" then c:Destroy() end end end)
@@ -15009,6 +15014,7 @@ task.spawn(function()
 		end
 	end
     LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
     local function setupDeathListener()
         local ch = LocalPlayer.Character
         if ch then
@@ -15018,6 +15024,7 @@ task.spawn(function()
     end
     setupDeathListener()
     LocalPlayer.CharacterAdded:Connect(function() task.wait(0.1); setupDeathListener() end)
+
     task.spawn(function()
         local currentConnection = nil
         _G.AntiDieConnection = nil
@@ -15047,6 +15054,7 @@ task.spawn(function()
         end)
     end)
 end)
+
 task.spawn(function()
     local wasStealingForInvis = false
     local invisWasEnabledBefore = false
@@ -15054,9 +15062,6 @@ task.spawn(function()
     task.wait(1)
     while task.wait(0.1) do
         if _G.AutoInvisDuringSteal == false then
-            if autoEnabledInvis and _G.invisibleStealEnabled and _G.toggleInvisibleSteal then
-                pcall(_G.toggleInvisibleSteal)
-            end
             wasStealingForInvis = false
             autoEnabledInvis = false
         else
@@ -15073,19 +15078,8 @@ task.spawn(function()
                 end
             end
             if not isStealing and autoEnabledInvis and _G.invisibleStealEnabled and _G.toggleInvisibleSteal then
+                pcall(_G.toggleInvisibleSteal)
                 autoEnabledInvis = false
-                task.spawn(function()
-                    local prevSink = _G.SinkSliderValue
-                    local prevAngle = _G.InvisStealAngle
-                    _G.SinkSliderValue = 0
-                    _G.InvisStealAngle = 0
-                    task.wait(0.25)
-                    if _G.invisibleStealEnabled and _G.toggleInvisibleSteal and not LocalPlayer:GetAttribute("Stealing") then
-                        pcall(_G.toggleInvisibleSteal)
-                    end
-                    _G.SinkSliderValue = prevSink
-                    _G.InvisStealAngle = prevAngle
-                end)
             end
             wasStealingForInvis = isStealing
         end
@@ -15980,15 +15974,14 @@ task.spawn(function()
     shScreenGui.Parent = PlayerGui
     shScreenGui.Enabled = Config.ShowServerHop
     local shFrame = Instance.new("Frame", shScreenGui)
-    shFrame.Size = UDim2.new(0, 250, 0, 220)
+    shFrame.Size = UDim2.new(0, 250, 0, 170)
     shFrame.Position = UDim2.new(Config.Positions.ServerHop.X, 0, Config.Positions.ServerHop.Y, 0)
     shFrame.BackgroundColor3 = Theme.Background
     shFrame.BackgroundTransparency = 0.05
     Instance.new("UICorner", shFrame).CornerRadius = UDim.new(0, 12)
     local shStroke = Instance.new("UIStroke", shFrame)
-    shStroke.Color = Color3.fromRGB(128, 128, 128)
-    shStroke.Thickness = 1.5
-    shStroke.Transparency = 0.4
+    shStroke.Color = Color3.fromRGB(215, 30, 255)
+    shStroke.Thickness = 2
     local shHeader = Instance.new("Frame", shFrame)
     shHeader.Size = UDim2.new(1, 0, 0, 35)
     shHeader.BackgroundTransparency = 1
@@ -16016,41 +16009,6 @@ task.spawn(function()
         r.BackgroundTransparency = 1
         return r
     end
-    local tbRow = CreateSHRow(35)
-    local tbLbl = Instance.new("TextLabel", tbRow)
-    tbLbl.Size = UDim2.new(0.5, 0, 1, 0)
-    tbLbl.BackgroundTransparency = 1
-    tbLbl.Text = "Min Value:"
-    tbLbl.TextColor3 = Theme.TextPrimary
-    tbLbl.Font = Enum.Font.GothamBold
-    tbLbl.TextSize = 12
-    tbLbl.TextXAlignment = Enum.TextXAlignment.Left
-    local tbFrame = Instance.new("Frame", tbRow)
-    tbFrame.Size = UDim2.new(0, 100, 0, 28)
-    tbFrame.Position = UDim2.new(1, -100, 0.5, -14)
-    tbFrame.BackgroundColor3 = Theme.Surface
-    tbFrame.BorderSizePixel = 0
-    Instance.new("UICorner", tbFrame).CornerRadius = UDim.new(0, 6)
-    local tbs = Instance.new("UIStroke", tbFrame)
-    tbs.Color = Color3.fromRGB(128, 128, 128)
-    tbs.Thickness = 1.5
-    tbs.Transparency = 0.4
-    local shTextBox = Instance.new("TextBox", tbFrame)
-    shTextBox.Size = UDim2.new(1, -8, 1, -4)
-    shTextBox.Position = UDim2.new(0, 4, 0, 2)
-    shTextBox.BackgroundTransparency = 1
-    shTextBox.Text = ""
-    shTextBox.TextColor3 = Theme.TextPrimary
-    shTextBox.TextSize = 11
-    shTextBox.Font = Enum.Font.Gotham
-    shTextBox.TextXAlignment = Enum.TextXAlignment.Center
-    shTextBox.PlaceholderText = "ex: 1000000"
-    shTextBox.ClearTextOnFocus = false
-    shTextBox.ZIndex = 2
-    shTextBox:GetPropertyChangedSignal("Text"):Connect(function()
-        local f = shTextBox.Text:gsub("[^%d]", "")
-        if shTextBox.Text ~= f then shTextBox.Text = f; shTextBox.CursorPosition = #f + 1 end
-    end)
     local autoRow = CreateSHRow(30)
     local autoLbl = Instance.new("TextLabel", autoRow)
     autoLbl.Size = UDim2.new(0.5, 0, 1, 0)
@@ -16189,34 +16147,33 @@ task.spawn(function()
         hopActive = true
         statusLbl.Text = "Status: Starting..."
         statusLbl.TextColor3 = Color3.fromRGB(0, 255, 0)
-        local target = tonumber(shTextBox.Text)
-        if target and target > 0 then
-            local maxFound = 0
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj.Name:lower():find("overhead") then
-                    for _, gui in pairs(obj:GetDescendants()) do
-                        if gui:IsA("TextLabel") then
-                            local text = gui.Text:lower()
-                            if text:find("%$") and (text:find("/s") or text:find("sec")) then
-                                local val = parseValue(text)
-                                if val > maxFound then maxFound = val end
-                            end
+        local function checkPriorityNow()
+            local names = _G._SH_BrainrotNames
+            if not names then return false end
+            for _, petName in ipairs(names) do
+                local nameLower = petName:lower()
+                for _, pname in ipairs(PRIORITY_LIST) do
+                    if pname:lower() == nameLower then
+                        local key = petName
+                        if not detectedBrainrots[key] then
+                            detectedBrainrots[key] = true
+                            brainrotLbl.Text = "BRAINROT: " .. petName
+                            statusLbl.Text = "Priority brainrot found! Auto disabled"
+                            statusLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
                         end
+                        return true
                     end
                 end
             end
-            if maxFound >= target then
-                statusLbl.Text = "Target " .. formatValue(target) .. "+ found!"
-                statusLbl.TextColor3 = Color3.fromRGB(0, 255, 0)
-                hopActive = false; autoModeEnabled = false
-                Config.ServerHopAutoMode = false; SaveConfig()
-                autoBtn.Text = "OFF"; autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
-            else
-                task.spawn(doServerHop)
-            end
-        else
-            task.spawn(doServerHop)
+            return false
         end
+        if checkPriorityNow() then
+            hopActive = false; autoModeEnabled = false
+            Config.ServerHopAutoMode = false; SaveConfig()
+            autoBtn.Text = "OFF"; autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
+            return
+        end
+        task.spawn(doServerHop)
     end
     local function stopAutoSearch()
         hopActive = false
@@ -16239,94 +16196,50 @@ task.spawn(function()
         statusLbl.Text = "Status: Stopped"; statusLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
         autoBtn.Text = "OFF"; autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
     end)
-    local function scanOverhead(overhead)
-        local name, income = nil, nil
-        for _, gui in pairs(overhead:GetDescendants()) do
-            if gui:IsA("TextLabel") then
-                local text = gui.Text
-                if text:find("%$") and (text:lower():find("/s") or text:lower():find("sec")) then
-                    income = text
-                elseif not text:find("%$") and text ~= "STOLEN" and #text > 2 then
-                    name = text
-                end
+    local function checkBrainrotCache()
+        local names = _G._SH_BrainrotNames
+        if not names or #names == 0 then return end
+        for _, petName in ipairs(names) do
+            local nameLower = petName:lower()
+            local isPriority = false
+            for _, pname in ipairs(PRIORITY_LIST) do
+                if pname:lower() == nameLower then isPriority = true; break end
             end
-        end
-        if income then
-            local value = parseValue(income)
-            local key = (name or "Brainrot") .. income
-            if value >= 10000000 and not detectedBrainrots[key] then
-                detectedBrainrots[key] = true
-                brainrotLbl.Text = "BRAINROT: " .. (name or "Brainrot") .. " | " .. income
-                statusLbl.Text = "Brainrot found! Auto disabled"
-                statusLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
-                if autoModeEnabled then
-                    autoModeEnabled = false; hopActive = false
-                    Config.ServerHopAutoMode = false; SaveConfig()
-                    autoBtn.Text = "OFF"; autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
-                end
-                task.delay(8, function()
-                    if brainrotLbl.Text == "BRAINROT: " .. (name or "Brainrot") .. " | " .. income then
-                        brainrotLbl.Text = ""
-                        if not autoModeEnabled then
-                            statusLbl.Text = "Status: Idle"; statusLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
-                        end
+            if isPriority then
+                local key = petName
+                if not detectedBrainrots[key] then
+                    detectedBrainrots[key] = true
+                    brainrotLbl.Text = "BRAINROT: " .. petName
+                    statusLbl.Text = "Priority brainrot found! Auto disabled"
+                    statusLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
+                    if autoModeEnabled then
+                        autoModeEnabled = false; hopActive = false
+                        Config.ServerHopAutoMode = false; SaveConfig()
+                        autoBtn.Text = "OFF"; autoBtn.BackgroundColor3 = Theme.SurfaceHighlight
                     end
-                end)
+                    task.delay(8, function()
+                        if brainrotLbl.Text == "BRAINROT: " .. petName then
+                            brainrotLbl.Text = ""
+                            if not autoModeEnabled then
+                                statusLbl.Text = "Status: Idle"; statusLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+                            end
+                        end
+                    end)
+                end
+                break
             end
         end
     end
-    workspace.DescendantAdded:Connect(function(d)
-        if d.Name:lower():find("overhead") then task.wait(0.1); scanOverhead(d) end
-        if d:IsA("Model") then
-            local o = d:FindFirstChild("Overhead") or d:FindFirstChild("AnimalOverhead")
-            if o then task.wait(0.1); scanOverhead(o) end
+    task.spawn(function()
+        while true do
+            checkBrainrotCache()
+            task.wait(0.2)
         end
     end)
     task.spawn(function()
-        task.wait(1)
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj.Name:lower():find("overhead") then scanOverhead(obj) end
-        end
+        task.wait(1.5)
         if Config.ServerHopAutoMode and not autoModeEnabled then
             autoModeEnabled = true; startAutoSearch()
-        end
-    end)
-    local startTime = tick()
-    local grad = Instance.new("UIGradient")
-    grad.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 60, 60)),
-        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(180, 180, 180)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 120, 120)),
-        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(180, 180, 180)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 60, 60)),
-    }
-    grad.Rotation = 0
-    grad.Parent = shStroke
-    local conn
-    conn = game:GetService("RunService").Heartbeat:Connect(function()
-        if not shFrame.Parent then conn:Disconnect(); return end
-        local now = tick()
-        local W, H = shFrame.AbsoluteSize.X, shFrame.AbsoluteSize.Y
-        if W > 0 and H > 0 then
-            local speed = 2.5
-            local perim = (W + H) * 2
-            local elapsed = (now - startTime) % speed
-            local progress = elapsed / speed
-            local dist = (progress * perim) % perim
-            local rot = 0
-            if dist < W then
-                rot = (dist / W) * 90
-            elseif dist < W + H then
-                rot = 90 + ((dist - W) / H) * 90
-            elseif dist < W * 2 + H then
-                rot = 180 + ((dist - W - H) / W) * 90
-            else
-                rot = 270 + ((dist - W * 2 - H) / H) * 90
-            end
-            grad.Rotation = rot
-            local wave = math.sin(progress * math.pi * 2)
-            shStroke.Transparency = 0.05 + ((wave + 1) * 0.5) * 0.4
-            shStroke.Thickness = 6 + math.sin(now * 5) * 0.15
         end
     end)
 end)
