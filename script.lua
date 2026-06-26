@@ -14416,10 +14416,8 @@ end
 task.spawn(function()
 	local animPlaying = false
 	local tracks = {}
-	local clone, oldRoot, hip, connection
+	local clone, oldRoot, hip
 	local folderConnections = {}
-	local originalRootTransparency
-	local SINK_AMOUNT = 5
 	local serverGhosts = {}
 	local ghostEnabled = true
 	local lagbackCallCount = 0
@@ -14427,12 +14425,40 @@ task.spawn(function()
 	local lastLagbackTime = 0
 	local errorOrbActive = false
 	local errorOrb = nil
-	local errorOrbConnection = nil
+	local RecoveryInProgress = false
+	local updateVisualFn = nil
+	local invisConnection = nil
+	local autoWatcher = nil
+
+	local function connectLoop(callback, interval, passDeltaTime)
+		local connectionObj = {Connected = true}
+		function connectionObj:Disconnect()
+			self.Connected = false
+		end
+		task.spawn(function()
+			local lastTick = os.clock()
+			while connectionObj.Connected do
+				local now = os.clock()
+				local dt = now - lastTick
+				lastTick = now
+				local ok, err
+				if passDeltaTime then
+					ok, err = pcall(callback, dt)
+				else
+					ok, err = pcall(callback)
+				end
+				if not ok then
+					warn("connectLoop callback failed:", err)
+				end
+				task.wait(interval or 0)
+			end
+		end)
+		return connectionObj
+	end
 
 	local function clearErrorOrb()
 		if errorOrb and errorOrb.Parent then errorOrb:Destroy() end
 		errorOrb = nil; errorOrbActive = false
-		if errorOrbConnection then errorOrbConnection:Disconnect(); errorOrbConnection = nil end
 	end
 
 	local function createErrorOrb()
@@ -14441,7 +14467,7 @@ task.spawn(function()
 		for _, ghost in pairs(serverGhosts) do if ghost and ghost.Parent then ghost:Destroy() end end
 		serverGhosts = {}
 		local sg = Instance.new("ScreenGui")
-		sg.Name = "ErrorOrbGui"; sg.ResetOnSpawn = false
+		sg.Name = "IS_ErrorOrbGui"; sg.ResetOnSpawn = false
 		sg.Parent = LocalPlayer:WaitForChild("PlayerGui")
 		local fr = Instance.new("Frame")
 		fr.Size = UDim2.new(0, 500, 0, 60)
@@ -14465,11 +14491,11 @@ task.spawn(function()
 	local function createServerGhost(position)
 		if not ghostEnabled or errorOrbActive then return end
 		local now = tick()
-		if now - lastLagbackTime < 0.05 then return end
+		if now - lastLagbackTime < 0.3 then return end
 		lastLagbackTime = now
-		if now - lagbackWindowStart > 1 then lagbackCallCount = 0; lagbackWindowStart = now end
+		if now - lagbackWindowStart > 3 then lagbackCallCount = 0; lagbackWindowStart = now end
 		lagbackCallCount = lagbackCallCount + 1
-		if lagbackCallCount >= 7 then createErrorOrb(); return end
+		if lagbackCallCount >= 5 then createErrorOrb(); return end
 		for _, g in pairs(serverGhosts) do if g and g.Parent then g:Destroy() end end
 		serverGhosts = {}
 		local sg = Instance.new("ScreenGui")
@@ -14481,13 +14507,6 @@ task.spawn(function()
 		sl.TextColor3 = Color3.fromRGB(255, 0, 0)
 		sl.TextStrokeTransparency = 0; sl.TextStrokeColor3 = Color3.new(0, 0, 0)
 		sl.Font = Enum.Font.SourceSansBold; sl.TextScaled = true; sl.Parent = sg
-		local sw = Instance.new("TextLabel")
-		sw.Size = UDim2.new(0, 650, 0, 25); sw.Position = UDim2.new(0.5, -325, 0.15, 32)
-		sw.BackgroundTransparency = 1
-		sw.Text = "DISABLE INVISIBLE STEAL NOW OR YOU WILL BE KILLED BY ANTICHEAT"
-		sw.TextColor3 = Color3.fromRGB(200, 200, 200)
-		sw.TextStrokeTransparency = 0; sw.TextStrokeColor3 = Color3.new(0, 0, 0)
-		sw.Font = Enum.Font.SourceSansBold; sw.TextScaled = true; sw.Parent = sg
 		task.delay(1.5, function() if sg and sg.Parent then sg:Destroy() end end)
 		local ghost = Instance.new("Part")
 		ghost.Name = "LagbackGhost"; ghost.Shape = Enum.PartType.Ball
@@ -14503,13 +14522,6 @@ task.spawn(function()
 		bl.Text = "LAGBACK DETECTED"; bl.TextColor3 = Color3.fromRGB(255, 0, 0)
 		bl.TextStrokeTransparency = 0; bl.TextStrokeColor3 = Color3.new(0, 0, 0)
 		bl.Font = Enum.Font.SourceSansBold; bl.TextScaled = true; bl.Parent = bb
-		local bw = Instance.new("TextLabel")
-		bw.Size = UDim2.new(1, 0, 0, 25); bw.Position = UDim2.new(0, 0, 0, 25)
-		bw.BackgroundTransparency = 1
-		bw.Text = "DISABLE INVISIBLE STEAL NOW OR YOU WILL BE KILLED BY ANTICHEAT"
-		bw.TextColor3 = Color3.fromRGB(200, 200, 200)
-		bw.TextStrokeTransparency = 0; bw.TextStrokeColor3 = Color3.new(0, 0, 0)
-		bw.Font = Enum.Font.SourceSansBold; bw.TextScaled = true; bw.Parent = bb
 		table.insert(serverGhosts, ghost)
 	end
 
@@ -14561,7 +14573,6 @@ task.spawn(function()
 			character.Parent = tmp
 			clone = oldRoot:Clone(); clone.Parent = character
 			oldRoot.Parent = Workspace.CurrentCamera
-			originalRootTransparency = oldRoot.Transparency; oldRoot.Transparency = 1
 			clone.CFrame = oldRoot.CFrame; character.PrimaryPart = clone
 			character.Parent = Workspace
 			for _, v in pairs(character:GetDescendants()) do
@@ -14581,7 +14592,6 @@ task.spawn(function()
 		local tmp = Instance.new("Model"); tmp.Parent = game
 		character.Parent = tmp
 		oldRoot.Parent = character; character.PrimaryPart = oldRoot
-		oldRoot.Transparency = originalRootTransparency or 0
 		character.Parent = Workspace; oldRoot.CanCollide = true
 		for _, v in pairs(character:GetDescendants()) do
 			if v:IsA("Weld") or v:IsA("Motor6D") then
@@ -14614,6 +14624,39 @@ task.spawn(function()
 		end
 	end
 
+	local function handleRagdollState(humanoid, new, isRagdolledRef, skipFramesRef, lastSetPositionRef)
+		if new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.Ragdoll then
+			if not isRagdolledRef[1] and oldRoot and clone then
+				isRagdolledRef[1] = true
+				local savedCF = clone.CFrame
+				local character = humanoid.Parent
+				pcall(function()
+					local tmp = Instance.new("Model"); tmp.Parent = game
+					character.Parent = tmp
+					oldRoot.Parent = character; character.PrimaryPart = oldRoot
+					character.Parent = Workspace; oldRoot.CanCollide = true
+					for _, v in pairs(character:GetDescendants()) do
+						if v:IsA("Weld") or v:IsA("Motor6D") then
+							if v.Part0 == clone then v.Part0 = oldRoot end
+							if v.Part1 == clone then v.Part1 = oldRoot end
+						end
+					end
+					if clone then clone:Destroy(); clone = nil end
+					oldRoot.CFrame = savedCF; tmp:Destroy()
+				end)
+				Camera.CameraSubject = humanoid; Camera.CameraType = Enum.CameraType.Custom
+			end
+		elseif new == Enum.HumanoidStateType.GettingUp or new == Enum.HumanoidStateType.Running or new == Enum.HumanoidStateType.Jumping then
+			if isRagdolledRef[1] then
+				isRagdolledRef[1] = false; task.wait(0.1)
+				if not animPlaying then return end
+				if clone then pcall(function() clone:Destroy() end); clone = nil end
+				local reapplySuccess = doClone()
+				if reapplySuccess then skipFramesRef[1] = 5; lastSetPositionRef[1] = nil end
+			end
+		end
+	end
+
 	local function turnOff()
 		clearAllGhosts()
 		if not animPlaying then return end
@@ -14622,13 +14665,13 @@ task.spawn(function()
 		animPlaying = false; _G.invisibleStealEnabled = false
 		for _, t in pairs(tracks) do pcall(function() t:Stop() end) end
 		tracks = {}
-		if connection then connection:Disconnect(); connection = nil end
+		if invisConnection then invisConnection:Disconnect(); invisConnection = nil end
 		for _, c in ipairs(folderConnections) do if c then c:Disconnect() end end
 		folderConnections = {}
 		revertClone(); clearAllGhosts()
 		if humanoid then pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
 		if _G.updateMovementPanelInvisVisual then pcall(_G.updateMovementPanelInvisVisual, false) end
-		if updateVisualState then updateVisualState(false) end
+		if updateVisualFn then updateVisualFn(false) end
 	end
 
 	local function turnOn()
@@ -14637,9 +14680,10 @@ task.spawn(function()
 		if not character then return end
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if not humanoid then return end
+		if not LocalPlayer:GetAttribute("Stealing") then return end
 		animPlaying = true; _G.invisibleStealEnabled = true
 		if _G.updateMovementPanelInvisVisual then pcall(_G.updateMovementPanelInvisVisual, true) end
-		if updateVisualState then updateVisualState(true) end
+		if updateVisualFn then updateVisualFn(true) end
 		tracks = {}; removeFolders()
 		local success = doClone()
 		if success then
@@ -14651,46 +14695,79 @@ task.spawn(function()
 				if _G.updateBrainrotBeam then pcall(_G.updateBrainrotBeam) end
 				if _G.createPlotBeam then pcall(_G.createPlotBeam) end
 			end)
-			local lastSetPosition = nil; local skipFrames = 5
-			connection = RunService.PreSimulation:Connect(function()
-				if character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 and oldRoot then
-					local root = character.PrimaryPart or character:FindFirstChild("HumanoidRootPart")
-					if root then
-						if skipFrames > 0 then skipFrames = skipFrames - 1; lastSetPosition = nil
-						elseif lastSetPosition and ghostEnabled then
-							local currentPos = oldRoot.Position
-							local jumpDist = (currentPos - lastSetPosition).Magnitude
-							if jumpDist > 3 and not _G.RecoveryInProgress then
-								lastSetPosition = nil; createServerGhost(currentPos)
-								if _G.AutoRecoverLagback and _G.toggleInvisibleSteal then
-									_G.RecoveryInProgress = true
-									task.spawn(function()
-										pcall(_G.toggleInvisibleSteal); task.wait(0.5)
-										pcall(_G.toggleInvisibleSteal); _G.RecoveryInProgress = false
-									end)
+			local lastSetPosition = {nil}; local skipFrames = {5}; local isRagdolled = {false}
+			local ragdollStateConn = humanoid.StateChanged:Connect(function(old, new)
+				handleRagdollState(humanoid, new, isRagdolled, skipFrames, lastSetPosition)
+			end)
+			table.insert(folderConnections, ragdollStateConn)
+			invisConnection = connectLoop(function()
+				if isRagdolled[1] then return end
+				if not (character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 and oldRoot) then return end
+				local root = character.PrimaryPart or character:FindFirstChild("HumanoidRootPart")
+				if not root then return end
+				if skipFrames[1] > 0 then skipFrames[1] = skipFrames[1] - 1; lastSetPosition[1] = nil
+				elseif lastSetPosition[1] and ghostEnabled then
+					local currentPos = oldRoot.Position
+					local jumpDist = (currentPos - lastSetPosition[1]).Magnitude
+					if jumpDist > 3 and not RecoveryInProgress then
+						lastSetPosition[1] = nil; createServerGhost(currentPos)
+						if _G.AutoRecoverLagback then
+							RecoveryInProgress = true
+							task.spawn(function()
+								pcall(turnOff); task.wait(1)
+								RecoveryInProgress = false
+								if LocalPlayer:GetAttribute("Stealing") then
+									pcall(turnOn)
 								end
-							end
-						end
-						if clone then clone.CanCollide = false end
-						for _, c in pairs(oldRoot:GetChildren()) do
-							if c:IsA("Attachment") or c:IsA("Beam") then c:Destroy() end
-						end
-						local rotAngle = _G.InvisStealAngle or 180
-						local sa = (_G.SinkSliderValue or 5) * 0.5
-						local cf = root.CFrame - Vector3.new(0, sa, 0)
-						oldRoot.CFrame = cf * CFrame.Angles(math.rad(rotAngle), 0, 0)
-						oldRoot.AssemblyLinearVelocity = root.AssemblyLinearVelocity; oldRoot.CanCollide = false
-						lastSetPosition = oldRoot.Position
-					end
-					for _, part in ipairs(character:GetDescendants()) do
-						if part:IsA("BasePart") and part ~= oldRoot and part ~= clone and part.Transparency > 0 then
-							part.Transparency = 0
+							end)
 						end
 					end
 				end
+				if clone then clone.CanCollide = false end
+				for _, c in pairs(oldRoot:GetChildren()) do
+					if c:IsA("Attachment") or c:IsA("Beam") then c:Destroy() end
+				end
+				local rotAngle = _G.InvisStealAngle or 236
+				local sa = (_G.SinkSliderValue or 7.4) * 0.5
+				local cf = root.CFrame - Vector3.new(0, sa, 0)
+				oldRoot.CFrame = cf * CFrame.Angles(math.rad(rotAngle), 0, 0)
+				oldRoot.Velocity = root.Velocity
+				oldRoot.CanCollide = false
+				lastSetPosition[1] = oldRoot.Position
 			end)
 		end
 	end
+
+	local function startAutoWatcher()
+		if autoWatcher then return end
+		autoWatcher = connectLoop(function()
+			if not Config.AutoInvisDuringSteal then return end
+			if RecoveryInProgress then return end
+			if LocalPlayer:GetAttribute("Stealing") then
+				if not animPlaying then pcall(turnOn) end
+			else
+				if animPlaying then pcall(turnOff) end
+			end
+		end)
+	end
+
+	startAutoWatcher()
+	LocalPlayer.CharacterAdded:Connect(function(newChar)
+		clearErrorOrb(); clearAllGhosts(); lagbackCallCount = 0
+		pcall(function()
+			for _, c in pairs(Camera:GetChildren()) do
+				if c:IsA("BasePart") and c.Name == "HumanoidRootPart" then c:Destroy() end
+			end
+		end)
+		if oldRoot then pcall(function() oldRoot:Destroy() end); oldRoot = nil end
+		if clone then pcall(function() clone:Destroy() end); clone = nil end
+		animPlaying = false; _G.invisibleStealEnabled = false
+		if _G.updateMovementPanelInvisVisual then pcall(_G.updateMovementPanelInvisVisual, false) end
+		if updateVisualFn then updateVisualFn(false) end
+		task.wait(0.2)
+		local h = newChar:FindFirstChildOfClass("Humanoid")
+		if h then Camera.CameraSubject = h; Camera.CameraType = Enum.CameraType.Custom end
+	end)
 
     local invisGui = Instance.new("ScreenGui")
     invisGui.Name = "BullysInvisPanel"
@@ -14978,6 +15055,7 @@ task.spawn(function()
             pcall(_G.updateMovementPanelInvisVisual, on)
         end
     end
+    updateVisualFn = updateVisualState
 
     btnInvis.MouseButton1Click:Connect(function()
 		if _G.toggleInvisibleSteal then
@@ -15055,36 +15133,7 @@ task.spawn(function()
     end)
 end)
 
-task.spawn(function()
-    local wasStealingForInvis = false
-    local invisWasEnabledBefore = false
-    local autoEnabledInvis = false
-    task.wait(1)
-    while task.wait(0.1) do
-        if _G.AutoInvisDuringSteal == false then
-            wasStealingForInvis = false
-            autoEnabledInvis = false
-        else
-            local isStealing = LocalPlayer:GetAttribute("Stealing")
-            if isStealing and not wasStealingForInvis then
-                invisWasEnabledBefore = _G.invisibleStealEnabled or false
-                if not _G.invisibleStealEnabled and _G.toggleInvisibleSteal then
-                    task.delay(0.25, function()
-                        if LocalPlayer:GetAttribute("Stealing") and not _G.invisibleStealEnabled then
-                            pcall(_G.toggleInvisibleSteal)
-                            autoEnabledInvis = true
-                        end
-                    end)
-                end
-            end
-            if not isStealing and autoEnabledInvis and _G.invisibleStealEnabled and _G.toggleInvisibleSteal then
-                pcall(_G.toggleInvisibleSteal)
-                autoEnabledInvis = false
-            end
-            wasStealingForInvis = isStealing
-        end
-    end
-end)
+-- AutoInvisDuringSteal handled internally by startAutoWatcher() inside the invisible steal task.spawn
 task.spawn(function()
     if not game:IsLoaded() then game.Loaded:Wait() end
     task.wait(3)
