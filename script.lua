@@ -2356,6 +2356,28 @@ task.spawn(function()
             for _, p in ipairs(allPets) do
                 table.insert(_G._SH_BrainrotNames, p.petName)
             end
+            if not SharedState._notifiedPriority then SharedState._notifiedPriority = {} end
+            local bestPrioIdx = math.huge
+            local bestPrioPet = nil
+            for _, p in ipairs(allPets) do
+                local pName = p.petName
+                if pName then
+                    for pi, prio in ipairs(PRIORITY_LIST) do
+                        if pName:lower() == prio:lower() and pi < bestPrioIdx then
+                            bestPrioIdx = pi
+                            bestPrioPet = p
+                            break
+                        end
+                    end
+                end
+            end
+            if bestPrioPet then
+                local key = bestPrioPet.uid or bestPrioPet.petName
+                if not SharedState._notifiedPriority[key] then
+                    SharedState._notifiedPriority[key] = true
+                    showBigAlert(tostring(bestPrioPet.petName) .. " detected")
+                end
+            end
         end
         playersLbl.Text = "Players: " .. #game:GetService("Players"):GetPlayers()
         local stealing = LocalPlayer:GetAttribute("Stealing")
@@ -3446,6 +3468,41 @@ task.spawn(function()
                         end
                     end
                 end
+            end
+        end
+    end)
+    task.spawn(function()
+        while true do
+            task.wait(2)
+            if not autoStealEnabled then continue end
+            local pets = get_all_pets()
+            local hasPrio = false
+            for _, p in ipairs(pets) do
+                local pName = p.petName
+                if pName then
+                    for _, prio in ipairs(PRIORITY_LIST) do
+                        if pName:lower() == prio:lower() then
+                            hasPrio = true
+                            break
+                        end
+                    end
+                end
+                if hasPrio then break end
+            end
+            if hasPrio and not Config.StealPriority then
+                Config.StealPriority = true
+                Config.StealNearest = false
+                Config.StealHighest = false
+                stealPriorityEnabled = true
+                stealNearestEnabled = false
+                stealHighestEnabled = false
+            elseif not hasPrio and Config.StealPriority then
+                Config.StealPriority = false
+                Config.StealNearest = true
+                Config.StealHighest = false
+                stealPriorityEnabled = false
+                stealNearestEnabled = true
+                stealHighestEnabled = false
             end
         end
     end)
@@ -5893,11 +5950,19 @@ UserInputService.InputBegan:Connect(function(input, _processed)
         task.spawn(executeReset)
     end
 end)
-local function showBigAlert(text)
+function showBigAlert(text)
     local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
     if not pgui then return end
     local existing = pgui:FindFirstChild("XiBigAlert")
     if existing then existing:Destroy() end
+    pcall(function()
+        local s = Instance.new("Sound")
+        s.SoundId = "rbxassetid://94124115820728"
+        s.Volume = 1
+        s.Parent = pgui
+        s:Play()
+        task.delay(3, function() if s and s.Parent then s:Destroy() end end)
+    end)
     local sg = Instance.new("ScreenGui", pgui)
     sg.Name = "XiBigAlert"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.DisplayOrder = 1000
     local f = Instance.new("Frame", sg)
@@ -5937,7 +6002,7 @@ local function showBigAlert(text)
         if sg.Parent then sg:Destroy() end
     end)
 end
-local function noPriorityFallback(reason)
+function noPriorityFallback(reason)
     showBigAlert(reason or "No priority brainrots detected")
     local char = LocalPlayer.Character
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
@@ -12257,9 +12322,24 @@ task.spawn(function()
     availableLabel.Font = Enum.Font.GothamBold
     availableLabel.TextSize = 12
     availableLabel.TextColor3 = Theme.TextSecondary
+    local availableSearchBox = Instance.new("TextBox", contentFrame)
+    availableSearchBox.Size = UDim2.new(0.45, 0, 0, 26)
+    availableSearchBox.Position = UDim2.new(0, 0, 0, 27)
+    availableSearchBox.BackgroundColor3 = Color3.fromRGB(20, 5, 30)
+    availableSearchBox.BorderSizePixel = 0
+    availableSearchBox.PlaceholderText = "Search available..."
+    availableSearchBox.PlaceholderColor3 = Theme.TextSecondary
+    availableSearchBox.Font = Enum.Font.GothamMedium
+    availableSearchBox.TextSize = 12
+    availableSearchBox.TextColor3 = Theme.TextPrimary
+    availableSearchBox.Text = ""
+    availableSearchBox.ClearTextOnFocus = false
+    Instance.new("UICorner", availableSearchBox).CornerRadius = UDim.new(0, 6)
+    local avSearchStroke = Instance.new("UIStroke", availableSearchBox)
+    avSearchStroke.Color = Theme.Accent2; avSearchStroke.Transparency = 0.5; avSearchStroke.Thickness = 1
     local availableScroll = Instance.new("ScrollingFrame", contentFrame)
-    availableScroll.Size = UDim2.new(0.45, 0, 1, -30)
-    availableScroll.Position = UDim2.new(0, 0, 0, 30)
+    availableScroll.Size = UDim2.new(0.45, 0, 1, -60)
+    availableScroll.Position = UDim2.new(0, 0, 0, 56)
     availableScroll.BackgroundColor3 = Theme.Surface
     availableScroll.BorderSizePixel = 0
     availableScroll.ScrollBarThickness = 6
@@ -12280,9 +12360,24 @@ task.spawn(function()
     priorityLabel.Font = Enum.Font.GothamBold
     priorityLabel.TextSize = 12
     priorityLabel.TextColor3 = Theme.TextSecondary
+    local prioritySearchBox = Instance.new("TextBox", contentFrame)
+    prioritySearchBox.Size = UDim2.new(0.45, 0, 0, 26)
+    prioritySearchBox.Position = UDim2.new(0.55, 0, 0, 27)
+    prioritySearchBox.BackgroundColor3 = Color3.fromRGB(20, 5, 30)
+    prioritySearchBox.BorderSizePixel = 0
+    prioritySearchBox.PlaceholderText = "Search priority..."
+    prioritySearchBox.PlaceholderColor3 = Theme.TextSecondary
+    prioritySearchBox.Font = Enum.Font.GothamMedium
+    prioritySearchBox.TextSize = 12
+    prioritySearchBox.TextColor3 = Theme.TextPrimary
+    prioritySearchBox.Text = ""
+    prioritySearchBox.ClearTextOnFocus = false
+    Instance.new("UICorner", prioritySearchBox).CornerRadius = UDim.new(0, 6)
+    local prioSearchStroke = Instance.new("UIStroke", prioritySearchBox)
+    prioSearchStroke.Color = Theme.Accent2; prioSearchStroke.Transparency = 0.5; prioSearchStroke.Thickness = 1
     local priorityScroll = Instance.new("ScrollingFrame", contentFrame)
-    priorityScroll.Size = UDim2.new(0.45, 0, 1, -30)
-    priorityScroll.Position = UDim2.new(0.55, 0, 0, 30)
+    priorityScroll.Size = UDim2.new(0.45, 0, 1, -60)
+    priorityScroll.Position = UDim2.new(0.55, 0, 0, 56)
     priorityScroll.BackgroundColor3 = Theme.Surface
     priorityScroll.BorderSizePixel = 0
     priorityScroll.ScrollBarThickness = 6
@@ -12310,7 +12405,9 @@ task.spawn(function()
             end
         end
         priorityButtons = {}        
+        local searchTxt = prioritySearchBox.Text:lower()
         for i, petName in ipairs(PRIORITY_LIST) do
+            if searchTxt ~= "" and not petName:lower():find(searchTxt, 1, true) then continue end
             local itemFrame = Instance.new("Frame")
             itemFrame.Size = UDim2.new(1, -10, 0, 35)
             itemFrame.BackgroundColor3 = Theme.SurfaceHighlight
@@ -12406,7 +12503,9 @@ task.spawn(function()
             end
         end
         availableButtons = {}
+        local searchTxt = availableSearchBox.Text:lower()
         for _, petName in ipairs(secretPets) do
+            if searchTxt ~= "" and not petName:lower():find(searchTxt, 1, true) then continue end
             local itemFrame = Instance.new("Frame")
             itemFrame.Size = UDim2.new(1, -10, 0, 30)
             itemFrame.BackgroundColor3 = Theme.SurfaceHighlight
@@ -12470,6 +12569,12 @@ task.spawn(function()
         pcall(refreshAvailableList)
         pcall(refreshPriorityList)
     end
+    availableSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        pcall(refreshAvailableList)
+    end)
+    prioritySearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        pcall(refreshPriorityList)
+    end)
     local saveBtn = Instance.new("TextButton", mainFrame)
     saveBtn.Size = UDim2.new(0, 120, 0, 35)
     saveBtn.Position = UDim2.new(0.5, -60, 1, -45)
@@ -14792,6 +14897,7 @@ task.spawn(function()
     iHeader.Size = UDim2.new(1, 0, 0, 35)
     iHeader.BackgroundTransparency = 1
     MakeDraggable(iHeader, iFrame, "InvisPanel")
+    AddResizeHandle(iFrame, "InvisPanel", UDim2.new(1, -22, 0, 6))
 
     local iTitle = Instance.new("TextLabel", iHeader)
     iTitle.Size = UDim2.new(1, -15, 1, 0)
