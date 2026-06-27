@@ -364,8 +364,8 @@ local DefaultConfig = {
     Floor2InstantCloneSpeed  = 0.05,
     Floor2InstantCloneSpeedHP= 0.1,
     Floor2BrainrotSpeed      = 0.4,
-    TweenTpSpeedF1           = 140,  
-    TweenTpSpeedF2           = 130,  
+    TweenTpSpeedF1           = 170,  
+    TweenTpSpeedF2           = 170,  
     AlertsEnabled = true,
     AlertSoundID = "rbxassetid://6518811702",
     GriefDetectorEnabled = false,
@@ -416,6 +416,8 @@ if isfile and isfile(FileName) then
         Config = decoded
     end)
 end
+Config.TweenTpSpeedF1 = 170
+Config.TweenTpSpeedF2 = 170
 Config.ProximityAP = false
 if Config.TweenTpV3Mode and (Config.UseTweenTp or Config.TweenTpSideMode) then
     Config.UseTweenTp = false
@@ -538,8 +540,6 @@ local function instantClone(cloneSpeed, skipAutoTp)
         pcall(function()
             hum:EquipTool(cloner)
         end)
-        local cloneGap = tonumber(cloneSpeed) or 0.05
-        if cloneGap < 0 then cloneGap = 0 end
         cloner:Activate()
         task.wait(0.015)
         local cloneName = tostring(LocalPlayer.UserId) .. "_Clone"
@@ -558,13 +558,12 @@ local function instantClone(cloneSpeed, skipAutoTp)
         local tpButton = qcFrame and qcFrame:FindFirstChild("TeleportToClone")
         if not tpButton then error("Teleport button missing") end
         tpButton.Visible = true
-        if cloneGap > 0 then task.wait(cloneGap) end
-            local vim = Instance.new("VirtualInputManager")
-            local inset = (cloneref and cloneref(game:GetService("GuiService")) or GuiService):GetGuiInset()
-            local pos = tpButton.AbsolutePosition + (tpButton.AbsoluteSize / 2) + inset
-            vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
-            task.wait()
-            vim:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+        local vim = Instance.new("VirtualInputManager")
+        local inset = (cloneref and cloneref(game:GetService("GuiService")) or GuiService):GetGuiInset()
+        local pos = tpButton.AbsolutePosition + (tpButton.AbsoluteSize / 2) + inset
+        vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
+        task.wait()
+        vim:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
     end)
     _G.isCloning = false
 end
@@ -3472,41 +3471,6 @@ task.spawn(function()
         end
     end)
     task.spawn(function()
-        while true do
-            task.wait(2)
-            if not autoStealEnabled then continue end
-            local pets = get_all_pets()
-            local hasPrio = false
-            for _, p in ipairs(pets) do
-                local pName = p.petName
-                if pName then
-                    for _, prio in ipairs(PRIORITY_LIST) do
-                        if pName:lower() == prio:lower() then
-                            hasPrio = true
-                            break
-                        end
-                    end
-                end
-                if hasPrio then break end
-            end
-            if hasPrio and not Config.StealPriority then
-                Config.StealPriority = true
-                Config.StealNearest = false
-                Config.StealHighest = false
-                stealPriorityEnabled = true
-                stealNearestEnabled = false
-                stealHighestEnabled = false
-            elseif not hasPrio and Config.StealPriority then
-                Config.StealPriority = false
-                Config.StealNearest = true
-                Config.StealHighest = false
-                stealPriorityEnabled = false
-                stealNearestEnabled = true
-                stealHighestEnabled = false
-            end
-        end
-    end)
-    task.spawn(function()
         local plots = workspace:FindFirstChild("Plots")
         if not plots then return end
         plots.DescendantAdded:Connect(function(obj)
@@ -6367,8 +6331,34 @@ local function _velocityFlyTo(hrp, hum, targetPoint, speed, timeout, arriveDist,
 end
 local function _doOverBase(hrp, hum, destPos, speed, timeout, arriveDist, cancelTk, rayParams)
     local origin = hrp.Position
-    local floorY = math.max(origin.Y, destPos.Y)
     local lowY   = math.min(origin.Y, destPos.Y) + 4
+    local flatDir = Vector3.new(destPos.X - origin.X, 0, destPos.Z - origin.Z)
+    local flatDist = flatDir.Magnitude
+    if flatDist > 0.1 then
+        flatDir = flatDir / flatDist
+    end
+    local perp = Vector3.new(-flatDir.Z, 0, flatDir.X)
+    local slideX, slideZ = nil, nil
+    for _, off in ipairs({4, 6, 8, 10, 12, 16, 20, 26, 34, 42, -4, -6, -8, -10, -12, -16, -20, -26, -34, -42}) do
+        local sx = origin.X + perp.X * off
+        local sz = origin.Z + perp.Z * off
+        local toWp = Vector3.new(sx - origin.X, 0, sz - origin.Z)
+        local wpClear = not Workspace:Raycast(origin + Vector3.new(0, 2, 0), toWp, rayParams)
+        if not wpClear then continue end
+        local waypoint = Vector3.new(sx, lowY, sz)
+        local toDest = Vector3.new(destPos.X - sx, 0, destPos.Z - sz)
+        local destClear = not Workspace:Raycast(waypoint, toDest, rayParams)
+        if not destClear then continue end
+        slideX, slideZ = sx, sz
+        break
+    end
+    if slideX then
+        if ShowNotification then pcall(ShowNotification, "OVERBASE", "slide around") end
+        local slideSpeed = math.min(speed, 120)
+        _velocityFlyTo(hrp, hum, Vector3.new(slideX, origin.Y, slideZ), speed, timeout * 0.3, arriveDist, cancelTk)
+        if cancelTk and cancelTk.cancelled then return false end
+        return _velocityFlyTo(hrp, hum, destPos, slideSpeed, timeout * 0.7, arriveDist, cancelTk)
+    end
     local function lowClear(x, z)
         local a = Vector3.new(x, lowY, z)
         local b = Vector3.new(destPos.X, lowY, destPos.Z)
@@ -6378,49 +6368,8 @@ local function _doOverBase(hrp, hum, destPos, speed, timeout, arriveDist, cancel
         if ShowNotification then pcall(ShowNotification, "OVERBASE", "direct (path clear)") end
         return _velocityFlyTo(hrp, hum, destPos, speed, timeout, arriveDist, cancelTk)
     end
-    local MAX_CLIMB = 60
-    local clearY
-    local h = 6
-    while h <= MAX_CLIMB do
-        local y = floorY + h
-        if not Workspace:Raycast(Vector3.new(origin.X, y, origin.Z),
-                Vector3.new(destPos.X - origin.X, 0, destPos.Z - origin.Z), rayParams) then
-            clearY = y; break
-        end
-        h = h + 6
-    end
-    local safeY = (clearY or (floorY + MAX_CLIMB)) + 6
-    local function dropClear(x, z)
-        return Workspace:Raycast(Vector3.new(x, safeY, z),
-            Vector3.new(0, lowY - safeY, 0), rayParams) == nil
-    end
-    local descendX, descendZ = destPos.X, destPos.Z
-    local flat = Vector3.new(destPos.X - origin.X, 0, destPos.Z - origin.Z)
-    local dist = flat.Magnitude
-    if dist > 14 then
-        local dir = flat / dist
-        local d = 12
-        while d < dist - 6 do
-            local cx = origin.X + dir.X * d
-            local cz = origin.Z + dir.Z * d
-            if lowClear(cx, cz) and dropClear(cx, cz) then
-                descendX, descendZ = cx, cz
-                break
-            end
-            d = d + 8
-        end
-    end
-    if ShowNotification then
-        pcall(ShowNotification, "OVERBASE", string.format("over | climb=%.0f", safeY - origin.Y))
-    end
-    local descendSpeed = math.min(speed, 100)
-    _velocityFlyTo(hrp, hum, Vector3.new(origin.X, safeY, origin.Z), speed, timeout * 0.3, arriveDist, cancelTk)
-    if cancelTk and cancelTk.cancelled then return false end
-    _velocityFlyTo(hrp, hum, Vector3.new(descendX, safeY, descendZ), speed, timeout * 0.3, arriveDist, cancelTk)
-    if cancelTk and cancelTk.cancelled then return false end
-    _velocityFlyTo(hrp, hum, Vector3.new(descendX, lowY, descendZ), descendSpeed, timeout * 0.2, arriveDist, cancelTk)
-    if cancelTk and cancelTk.cancelled then return false end
-    return _velocityFlyTo(hrp, hum, destPos, descendSpeed, timeout * 0.2, arriveDist, cancelTk)
+    if ShowNotification then pcall(ShowNotification, "OVERBASE", "stuck - no path") end
+    return false
 end
 local function carpetFly(hrp, targetPos, opts)
     opts = opts or {}
@@ -6559,22 +6508,45 @@ local function runAutoSnipe()
         isSecondFloor = false
     end
     local plotIndex = getClosestBaseIdx(exactPos)
-    local targetBasePos = isSecondFloor and BASES_HIGH[plotIndex] or BASES_LOW[plotIndex]
-    local jumpVel = isSecondFloor and (tonumber(Config.Floor2Velocity) or 200) or (tonumber(Config.Floor1Velocity) or 200)
-    local minHeight = isSecondFloor and (tonumber(Config.Floor2Height) or 40) or (tonumber(Config.Floor1Height) or 50)
-    local targetHeight = math.max(targetBasePos.Y, minHeight)
     local _flyTok = newCarpetCancelToken()
-    carpetFly(hrp, targetBasePos, {
-        speed       = isSecondFloor and Config.TweenTpSpeedF2 or Config.TweenTpSpeedF1,
-        safetyPad   = 0,
-        forceMulti  = isSecondFloor,
-        routeAroundObstacles = true,
-        cancelToken = _flyTok,
-    })
-    hrp.Velocity = Vector3.zero
+    local flyOk = false
     if isSecondFloor then
-        hrp.CFrame = CFrame.new(targetBasePos)
+        local groundPos = BASES_LOW[plotIndex]
+        flyOk = carpetFly(hrp, groundPos, {
+            speed       = Config.TweenTpSpeedF1,
+            safetyPad   = 0,
+            forceMulti  = false,
+            routeAroundObstacles = true,
+            cancelToken = _flyTok,
+        })
         hrp.Velocity = Vector3.zero
+        if flyOk then
+            local _flyTok2 = newCarpetCancelToken()
+            local highPos = BASES_HIGH[plotIndex]
+            flyOk = carpetFly(hrp, highPos, {
+                speed       = Config.TweenTpSpeedF2,
+                safetyPad   = 0,
+                forceMulti  = true,
+                routeAroundObstacles = true,
+                cancelToken = _flyTok2,
+            })
+            hrp.Velocity = Vector3.zero
+        end
+    else
+        local targetBasePos = BASES_LOW[plotIndex]
+        flyOk = carpetFly(hrp, targetBasePos, {
+            speed       = Config.TweenTpSpeedF1,
+            safetyPad   = 0,
+            forceMulti  = false,
+            routeAroundObstacles = true,
+            cancelToken = _flyTok,
+        })
+        hrp.Velocity = Vector3.zero
+    end
+    if not flyOk then
+        ShowNotification("TP", "Failed to reach base")
+        State.isTpMoving = false
+        return
     end
     task.wait(0.15)
     if not isSecondFloor then
